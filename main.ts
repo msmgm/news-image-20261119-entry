@@ -50,8 +50,19 @@ if (isPng) {
     if (marker === 0xD8 || marker === 0xD9 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
       continue;
     }
-    if (marker === 0xC0 || marker === 0xC2) {
-      const segStart = pos - 2;
+    if (pos + 2 > buffer.length) {
+      throw new Error('Gate failed: truncated JPEG segment header');
+    }
+    const segLen = buffer.readUInt16BE(pos);
+    if (segLen < 2) {
+      throw new Error('Gate failed: invalid JPEG segment length');
+    }
+    const segStart = pos - 2;
+    if (segStart + segLen > buffer.length) {
+      throw new Error('Gate failed: JPEG segment runs past end of buffer');
+    }
+
+    if ((marker >= 0xC0 && marker <= 0xCF) && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
       if (segStart + 9 > buffer.length) {
         throw new Error('Gate failed: truncated JPEG SOF segment');
       }
@@ -60,14 +71,10 @@ if (isPng) {
       foundSof = true;
       break;
     }
-    if (pos + 2 > buffer.length) {
-      throw new Error('Gate failed: truncated JPEG segment header');
-    }
-    const segLen = buffer.readUInt16BE(pos);
     pos += segLen;
   }
   if (!foundSof) {
-    throw new Error('Gate failed: JPEG SOF0/SOF2 marker not found');
+    throw new Error('Gate failed: JPEG SOF marker not found');
   }
 } else {
   throw new Error('Gate failed: unsupported image format (must be PNG or JPEG)');
